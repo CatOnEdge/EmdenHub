@@ -64,6 +64,8 @@ local ver = FormatSemVer(SCRIPT_VERSION)
 
 -- Setup executor workspace file directory for saving configs and settings:
 
+local HTTPService = game:GetService("HttpService")
+
 --Check Executor Has Global Function
 function genv.CEHGF(name: string): boolean
     if genv[name] and type(genv[name]) == "function" then
@@ -90,6 +92,7 @@ genv.EXECUTOR_FILING_ENABLED = true
 for i, name in ipairs(EXECUTOR_FILING_FUNCTIONS) do
     if not CEHGF(name) then
         EXECUTOR_FILING_ENABLED = false
+        warn("Executor does not support file functions. File saving/loading features will be disabled. Missing function: " .. name)
         break
     end
 end
@@ -261,6 +264,7 @@ end
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -681,6 +685,164 @@ local function tamperGun(gun: string)
     }
 
     setPropertiesRecursively(gun, newProperties)
+end
+
+--AutoBus
+local autobus_thread = nil
+local autobus_enabled = Iris.State(false)
+do
+    local DefaultBusLocationsTable = {
+        BusStop_4OrangeInv = { 904.1454467773438, 68.958984375, 834.0386352539062, -0.7661795616149902, 0, 0.6426267623901367, 0, 1, 0, -0.6426267623901367, 0, -0.7661795616149902 },
+        BusStop_5Rot = { -1563.828125, 41.515625, -538.75390625, 0.938283383846283, 0, -0.34586742520332336, 0, 1, 0, 0.34586742520332336, 0, 0.938283383846283 },
+        BusStop_5OrangeInv = { 642.195556640625, 41.515625, -2004.3958740234375, 0.9986181855201721, 0, 0.05255195498466492, 0, 1, 0, -0.05255195498466492, 0, 0.9986181855201721 },
+        BusStop_6RotInv = { 612.1533813476562, 41.515625, -2003.4979248046875, -0.9986186027526855, 0, -0.05255195498466492, 0, 1, 0, 0.05255195498466492, 0, -0.9986186027526855 },
+        BusStop_7RotInv = { -561.9729614257812, 41.51171875, -1204.152587890625, -0.9993922710418701, 0, -0.03486879914999008, 0, 1, 0, 0.03486879914999008, 0, -0.9993922710418701 },
+        BusStop_1Rot = { 20.845703125, 68.958984375, 681.998046875, 0.9848124980926514, 0, 0.17362114787101746, 0, 1, 0, -0.17362114787101746, 0, 0.9848124980926514 },
+        BusStop_2Orange = { -2097.86767578125, 41.515625, 425.59649658203125, -0.017623186111450195, 0, 0.9998448491096497, 0, 1, 0, -0.9998448491096497, 0, -0.017623186111450195 },
+        BusStop_6OrangeInv = { -2332.544921875, 41.515625, -1221.6705322265625, -0.9658845663070679, 0, 0.25897300243377686, 0, 1, 0, -0.25897300243377686, 0, -0.9658845663070679 },
+        BusStop_7Rot = { -2096.721435546875, 41.515625, 471.6341857910156, 0.01762288808822632, 0, -0.9998448491096497, 0, 1, 0, 0.9998448491096497, 0, 0.01762288808822632 },
+        BusStop_2RotInv = { -2097.859375, 41.515625, 426.078125, -0.017623186111450195, 0, 0.9998448491096497, 0, 1, 0, -0.9998448491096497, 0, -0.017623186111450195 },
+        BusStop_1RotInv = { 72.849609375, 68.958984375, 726.095703125, 0.9848124980926514, 0, 0.17362114787101746, 0, 1, 0, -0.17362114787101746, 0, 0.9848124980926514 },
+        BusStop_3OrangeInv = { 830.0198364257812, 41.36328125, 1545.96484375, -1, 0, 0, 0, 1, 0, 0, 0, -1 },
+        BusStop_5RotInv = { -525.1734619140625, 41.578125, -1102.8594970703125, 0.9993919134140015, 0, 0.03486879914999008, 0, 1, 0, -0.03486879914999008, 0, 0.9993919134140015 },
+        BusStop_3Orange = { -2288.2734375, 41.515625, -1210.1875, 0.9658845663070679, 0, -0.25897300243377686, 0, 1, 0, 0.25897300243377686, 0, 0.9658845663070679 },
+        BusStop_4Orange = { 612.56640625, 41.515625, -2003.51953125, -0.9986186027526855, 0, -0.05255195498466492, 0, 1, 0, 0.05255195498466492, 0, -0.9986186027526855 },
+        BusStop_Start = { -12.13671875, 68.9609375, 1011.41796875, 0.9848124980926514, 0, 0.17362114787101746, 0, 1, 0, -0.17362114787101746, 0, 0.9848124980926514 },
+        BusStop_1Orange = { 93.435546875, 68.958984375, 618.572265625, 0.9848124980926514, 0, 0.17362114787101746, 0, 1, 0, -0.17362114787101746, 0, 0.9848124980926514 },
+        BusStop_3RotInv = { -2288.28125, 41.515625, -1210.15625, -0.9658845663070679, 0, 0.25897300243377686, 0, 1, 0, -0.25897300243377686, 0, -0.9658845663070679 },
+        BusStop_2OrangeInv = { 892.01953125, 68.958984375, 823.86328125, -0.7661795616149902, 0, 0.6426267623901367, 0, 1, 0, -0.6426267623901367, 0, -0.7661795616149902 },
+        BusStop_4RotInv = { -1578.69140625, 41.515625, -586.09765625, -0.9382835626602173, 0, 0.34586742520332336, 0, 1, 0, -0.34586742520332336, 0, -0.9382835626602173 },
+        BusStop_5Orange = { 830.9609375, 41.36328125, 1545.96484375, -1, 0, 0, 0, 1, 0, 0, 0, -1 },
+        BusStop_4Rot = { -561.64453125, 41.51171875, -1204.1640625, -0.9993922710418701, 0, -0.03486879914999008, 0, 1, 0, 0.03486879914999008, 0, -0.9993922710418701 },
+        BusStop_1OrangeInv = { 0.58984375, 68.958984375, 790.365234375, 0.9848124980926514, 0, 0.17362114787101746, 0, 1, 0, -0.17362114787101746, 0, 0.9848124980926514 },
+        BusStop_6Rot = { -2332.0546875, 41.515625, -1221.5390625, -0.9658845663070679, 0, 0.25897300243377686, 0, 1, 0, -0.25897300243377686, 0, -0.9658845663070679 },
+        BusStop_7OrangeInv = { -2096.7265625, 41.515625, 471.3359375, 0.01762288808822632, 0, -0.9998448491096497, 0, 1, 0, 0.9998448491096497, 0, 0.01762288808822632 },
+        BusStop_6Orange = { 903.943359375, 68.958984375, 833.869140625, -0.7661795616149902, 0, 0.6426267623901367, 0, 1, 0, -0.6426267623901367, 0, -0.7661795616149902 },
+        BusStop_3Rot = { 641.94921875, 41.515625, -2004.3828125, 0.9986181855201721, 0, 0.05255195498466492, 0, 1, 0, -0.05255195498466492, 0, 0.9986181855201721 },
+        BusStop_2Rot = { -525.40234375, 41.578125, -1102.8515625, 0.9993919134140015, 0, 0.03486879914999008, 0, 1, 0, -0.03486879914999008, 0, 0.9993919134140015 }
+    }
+
+    masterBusLocations = {}
+
+    saveLocations = nil
+
+    if EXECUTOR_FILING_ENABLED then
+        local SAVE_FILE_PATH = SCRIPT_DIRECTORY_PATH.."/AutoBus_Locations.json"
+
+        saveLocations = function()
+            if writefile then
+                local saveTable = {}
+                for name, cf in pairs(masterBusLocations) do
+                    saveTable[name] = {cf:GetComponents()}
+                end
+                writefile(SAVE_FILE_PATH, HttpService:JSONEncode(saveTable))
+            end
+        end
+
+        function loadLocations()
+            if isfile and isfile(SAVE_FILE_PATH) then
+                local jsonData = readfile(SAVE_FILE_PATH)
+                local success, saveTable = pcall(function() return HttpService:JSONDecode(jsonData) end)
+                if success and type(saveTable) == "table" then
+                    if #saveTable == 0 then
+                        saveTable = DefaultBusLocationsTable
+                    end
+                    for name, comps in pairs(saveTable) do
+                        masterBusLocations[name] = CFrame.new(table.unpack(comps))
+                    end
+                end
+            end
+        end
+
+        loadLocations()
+    else
+        masterBusLocations = DefaultBusLocationsTable
+    end
+
+    -- ==========================================
+    -- VEHICLE DETECTION
+    -- ==========================================
+    function getMyBus()
+        local character = player.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.SeatPart then
+                local vehicle = humanoid.SeatPart
+                local busModel = vehicle
+                while vehicle and vehicle.Parent and vehicle.Parent ~= game.Workspace do
+                    vehicle = vehicle.Parent
+                    if vehicle:IsA("Model") then
+                        busModel = vehicle
+                    elseif vehicle:IsA("Folder") then
+                        break 
+                    end
+                end
+                return busModel
+            end
+        end
+        return nil
+    end
+
+    function setEntireBusVelocity(bus, linearVelocity)
+        for _, part in ipairs(bus:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.AssemblyLinearVelocity = linearVelocity
+                part.AssemblyAngularVelocity = Vector3.zero
+            end
+        end
+    end
+
+    -- ==========================================
+    -- PROMPT DETECTION
+    -- ==========================================
+    function waitForPromptToClear()
+        -- This looks for the "Stop Your Vehicle" text in your PlayerGui
+        -- The script will wait here until that specific text disappears
+        local startTime = tick()
+        repeat 
+            task.wait(0.5)
+            local promptFound = false
+            -- Search through PlayerGui for the specific text from your video
+            local guiObjects = player.PlayerGui:GetDescendants()
+            for _, obj in ipairs(guiObjects) do
+                if obj:IsA("TextLabel") and (obj.Text:find("Stop Your Vehicle") or obj.Text:find("have to stop")) then
+                    if obj.Visible == true and obj.TextTransparency < 1 then
+                        promptFound = true
+                        break
+                    end
+                end
+            end
+        until not promptFound or (tick() - startTime > 10) -- Max 10s timeout safety
+    end
+
+    -- ==========================================
+    -- CORE LOGIC
+    -- ==========================================
+    function executeTeleport(bus, targetCFrame)
+        local rootPart = bus.PrimaryPart or bus:FindFirstChildWhichIsA("BasePart", true)
+        
+        if rootPart then
+            -- 60 studs back, 3 studs up
+            local backwardOffset = -targetCFrame.LookVector * 60
+            local spawnCFrame = (targetCFrame + backwardOffset) + Vector3.new(0, 3, 0)
+            
+            setEntireBusVelocity(bus, Vector3.zero)
+            bus:PivotTo(spawnCFrame)
+            
+            local driveSpeed = targetCFrame.LookVector * 60
+            setEntireBusVelocity(bus, driveSpeed)
+            
+            task.wait(1.5)
+            
+            -- Hard Brake
+            setEntireBusVelocity(bus, Vector3.zero)
+            
+            -- NEW: Wait for the game UI to finish before moving to the next stop
+            waitForPromptToClear()
+        end
+        
+        task.wait(1) -- Short buffer after prompt clears
+    end
 end
 
 -- Iris Init
@@ -1326,22 +1488,8 @@ Iris:Connect(function()
             end
             Iris.End()
 
-            Iris.Tab({"Other"})
+            Iris.Tab("Vehicles")
             do
-                for i, bool: boolean in pairs(Config.antis:get()) do
-                    local ConfigDisplayName = ConfigDisplayNames[i] or i
-                    local checkbox = Iris.Checkbox({ConfigDisplayName}, { isChecked = Iris.WeakState(bool) })
-                    if checkbox.checked() or checkbox.unchecked() then
-                        local newBool = checkbox.state.isChecked:get()
-                        local antis = Config.antis:get()
-                        antis[i] = newBool
-                        Config.antis:set(antis)
-                        antisChanged(antis)
-                    end
-                end
-
-                Iris.SeparatorText({ "Vehicles" })
-
                 local CarDamageDisabled = Iris.Checkbox({"Car Damage Disabled"}, { isChecked = Config.carDamageDisabled })
                 if CarDamageDisabled.checked() or CarDamageDisabled.unchecked() then
                     local newDisabled = CarDamageDisabled.state.isChecked:get()
@@ -1416,6 +1564,67 @@ Iris:Connect(function()
                         end
                     end
                 end
+            end
+            Iris.End()
+
+            Iris.Tab("Auto Farm")
+            do
+                Iris.Text({"Auto farming scripts that can be toggled on and off."})
+                Iris.SeparatorText({"Auto Bus"})
+                local AutoBusEnabled = Iris.Checkbox({"Auto Bus Enabled"}, { isChecked = autobus_enabled })
+                if AutoBusEnabled.checked() or AutoBusEnabled.unchecked() then
+                    local newDisabled = AutoBusEnabled.state.isChecked:get()
+                    autobus_enabled:set(newDisabled)
+                    if autobus_thread ~= nil then
+                        task.cancel(autobus_thread)
+                        autobus_thread = nil
+                    else
+                        autobus_thread = task.spawn(function()
+                            while autobus_enabled:get() == true do
+                                local bus = getMyBus()
+                                local nextStopName = LocalPlayer:GetAttribute("LastBusStation")
+                                
+                                if bus and nextStopName then
+                                    if masterBusLocations[nextStopName] then
+                                        executeTeleport(bus, masterBusLocations[nextStopName])
+                                    else
+                                        for _, stop in ipairs(CollectionService:GetTagged("BusStop")) do
+                                            if stop.Name == nextStopName then
+                                                local pad = stop:FindFirstChild("Pad")
+                                                if pad then
+                                                    masterBusLocations[nextStopName] = pad.CFrame
+                                                    if saveLocations and type(saveLocations) == "function" then
+                                                        saveLocations()
+                                                    end
+                                                    executeTeleport(bus, pad.CFrame)
+                                                    break
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                                task.wait(0.1)
+                            end
+                        end)
+                    end
+                end
+                Iris.Separator()
+            end
+            Iris.End()
+
+            Iris.Tab({"Other"})
+            do
+                for i, bool: boolean in pairs(Config.antis:get()) do
+                    local ConfigDisplayName = ConfigDisplayNames[i] or i
+                    local checkbox = Iris.Checkbox({ConfigDisplayName}, { isChecked = Iris.WeakState(bool) })
+                    if checkbox.checked() or checkbox.unchecked() then
+                        local newBool = checkbox.state.isChecked:get()
+                        local antis = Config.antis:get()
+                        antis[i] = newBool
+                        Config.antis:set(antis)
+                        antisChanged(antis)
+                    end
+                end
 
                 Iris.SeparatorText({ "Tools" })
 
@@ -1449,6 +1658,14 @@ Iris:Connect(function()
     end
 end)
 
+--Anti AFK
+local VirtualUser = game:GetService("VirtualUser")
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+--Virtual Input (for keyboard inputs)
 local VirtualInputManager = game:GetService("VirtualInputManager")
 function genv.sendkeyevent(isPressed: boolean, keyCode: Enum.KeyCode)
     assert(isPressed ~= nil, "[ERROR] sendkeyevent parameter[1] \"isPressed\" must be a boolean!")
