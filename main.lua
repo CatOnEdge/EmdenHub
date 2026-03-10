@@ -2263,7 +2263,7 @@ do
         end
     end
 
-    for i: number, v: Instance in ipairs(workspace:GetDescendants()) do
+    for i: number, v: Instance in ipairs(workspace.Characters:GetChildren()) do
         task.spawn(function()
             if v:IsA("Model") then
                 if v:FindFirstChildOfClass("Humanoid") then
@@ -2273,7 +2273,7 @@ do
         end)
     end
 
-    local workspace_child_added_connection = workspace.DescendantAdded:Connect(function(v)
+    local workspace_child_added_connection = workspace.Characters.ChildAdded:Connect(function(v)
         task.spawn(makeESP, v)
     end)
 
@@ -2288,7 +2288,16 @@ do
         end
     end
 
-    local esp_update_draw_connection = RunService.RenderStepped:Connect(function()
-        ESP:render(drawFunction)
+    local esp_update_draw_thread = task.spawn(function()
+        local framerate = 60
+        local frameTime = 1/framerate
+        local lastTime = nil
+        while true do
+            if not lastTime or os.clock() - lastTime >= frameTime then
+                ESP:render(drawFunction)
+                lastTime = os.clock()
+            end
+            task.wait()
+        end
     end)
 end
