@@ -2153,7 +2153,7 @@ do
 
     function DrawGenericESP(entry)
         if not entry.Model or not entry.Part then
-            return
+            return nil
         end
 
         local thisConfig = nil
@@ -2181,43 +2181,52 @@ do
 
         local itsPos = calculations and calculations.CF and calculations.CF.Position or nil
         if not itsPos then
-            return
+            return nil
         end
         
         local MyDistanceSquared = ESP.GetMyDistanceSquared(itsPos)
-        local MaxRenderDistanceSquared = math.min(Config.ESP.MasterMaxRenderDistance:get() or 20000, (thisConfig ~= nil and thisConfig.MaxRenderDistance ~= nil and thisConfig.MaxRenderDistance:get()) or 20000)
-        if MaxRenderDistanceSquared and type(MaxRenderDistanceSquared) == "number" then
-            --Unsquared, so Square it
-            MaxRenderDistanceSquared = MaxRenderDistanceSquared * MaxRenderDistanceSquared
-            calculations.FailedRenderDistance = MyDistanceSquared > MaxRenderDistanceSquared
+        if MyDistanceSquared then
+            local MaxRenderDistanceSquared = math.min(Config.ESP.MasterMaxRenderDistance:get() or 20000, (thisConfig ~= nil and thisConfig.MaxRenderDistance ~= nil and thisConfig.MaxRenderDistance:get()) or 20000)
+            if MaxRenderDistanceSquared and type(MaxRenderDistanceSquared) == "number" then
+                --Unsquared, so Square it
+                MaxRenderDistanceSquared = MaxRenderDistanceSquared * MaxRenderDistanceSquared
+                calculations.FailedRenderDistance = MyDistanceSquared > MaxRenderDistanceSquared
+            else
+                MaxRenderDistanceSquared = math.huge
+                calculations.FailedRenderDistance = false
+            end
+            local MaxHealthDistanceSquared = (thisConfig ~= nil and thisConfig.MaxHealthDistance ~= nil and thisConfig.MaxHealthDistance:get() or 300)
+            if MaxHealthDistanceSquared and type(MaxHealthDistanceSquared) == "number" then
+                --Unsquared, so Square it
+                MaxHealthDistanceSquared = MaxHealthDistanceSquared * MaxHealthDistanceSquared
+                calculations.FailedHealthDistance = MyDistanceSquared > MaxHealthDistanceSquared
+            end
         else
-            MaxRenderDistanceSquared = math.huge
             calculations.FailedRenderDistance = false
+            calculations.FailedHealthDistance = false
         end
-        local MaxHealthDistanceSquared = (thisConfig ~= nil and thisConfig.MaxHealthDistance ~= nil and thisConfig.MaxHealthDistance:get() or 300)
-        if MaxHealthDistanceSquared and type(MaxHealthDistanceSquared) == "number" then
-            --Unsquared, so Square it
-            MaxHealthDistanceSquared = MaxHealthDistanceSquared * MaxHealthDistanceSquared
-            calculations.FailedHealthDistance = MyDistanceSquared > MaxHealthDistanceSquared
-        end
+
+        local drawings = {}
 
         if entry.Category == "Player" then
             if not thisConfig then
-                return
+                return nil
             end
 
             local healthDisplayTypeIndex = thisConfig.HealthDisplayType:get()
             local healthDisplayType = SELECTABLE_HEALTH_DISPLAY_TYPES[healthDisplayTypeIndex]
 
-            DrawGenericShape(entry, calculations)
-            DrawText(entry, calculations)
-            DrawHealthbar(entry, calculations, healthDisplayType)
+            drawings.Shape = DrawGenericShape(entry, calculations)
+            drawings.Text = DrawText(entry, calculations)
+            drawings.Healthbar = DrawHealthbar(entry, calculations, healthDisplayType)
 
         else
             --"default" category, when Category == nil
-            DrawGenericShape(entry, calculations)
-            DrawText(entry, calculations)
+            drawings.Shape = DrawGenericShape(entry, calculations)
+            drawings.Text = DrawText(entry, calculations)
         end
+
+        return drawings
     end
 
     function Draw(model, params)
